@@ -1,11 +1,13 @@
-# Amazon Top 50 Product Scraper (ETL)
+﻿# Amazon Top 50 Product Scraper (ETL)
 
 ## Overview
 This project implements a lightweight **data engineering ETL pipeline** that scrapes top-ranked products from an Amazon bestsellers category page and writes a structured CSV dataset.
 
-- **Source code:** `product_scraping.ipynb`
+- **Pipeline entrypoint:** `pipelines/pipeline_1.py`
+- **Notebook wrapper:** `product_scraping.ipynb`
 - **Output dataset:** `amazon_top50.csv`
-- **Current target category URL in code:** `https://www.amazon.in/gp/bestsellers/kitchen/3474656031`
+- **Config file:** `config/config.yaml`
+- **Current target category URL:** `https://www.amazon.in/gp/bestsellers/kitchen/3474656031`
 - **Configured extract size:** 50 products
 
 The pipeline is designed to:
@@ -13,10 +15,46 @@ The pipeline is designed to:
 - **Transform** raw text into standardized fields (brand, type, tonnage, star rating, numeric price/review fields).
 - **Load** the curated records into a quoted CSV file for downstream analytics.
 
+## Project Structure
+
+```
+config/
+  config.yaml
+  __init__.py
+
+data/
+  raw/
+  processed/
+
+docs/
+  README.md
+
+etl/
+  extract/
+    extract_data.py
+  transform/
+    transform_data.py
+  load/
+    load_data.py
+
+pipelines/
+  pipeline_1.py
+
+src/
+  data/
+    data_preprocessing.py
+  utils/
+    text.py
+  validation/
+    data_validation.py
+
+tests/
+```
+
 ## ETL Design
 
 ### 1) Extract
-Extraction logic in `product_scraping.ipynb`:
+Extraction logic in `etl/extract/extract_data.py`:
 - Launches Chrome in headless mode with Selenium.
 - Reads bestseller listing pages (page 1 and page 2) to collect up to 50 unique product links.
 - Uses ASIN parsing to deduplicate links.
@@ -25,11 +63,11 @@ Extraction logic in `product_scraping.ipynb`:
 Core extraction methods:
 - `make_driver()`
 - `get_product_links()`
-- `scrape_product()`
+- `scrape_product_raw()`
 - `first_text()`
 
 ### 2) Transform
-Transformation logic in `product_scraping.ipynb`:
+Transformation logic in `etl/transform/transform_data.py` (with helpers in `src/data/data_preprocessing.py`):
 - Normalizes text with whitespace cleanup.
 - Derives `brand` as the first token in title.
 - Derives `type` as `Inverter` vs `Non-Inverter` from title text.
@@ -41,11 +79,13 @@ Transformation logic in `product_scraping.ipynb`:
 - Converts `selling_price` and `review count` to digit-only strings.
 - Stamps each row with a run-level timestamp (`scrape_datetime`).
 
-Core transformation method:
+Core transformation methods:
+- `build_row()`
+- `fallback_row()`
 - `parse_title_attributes()`
 
 ### 3) Load
-Load logic in `product_scraping.ipynb`:
+Load logic in `etl/load/load_data.py`:
 - Writes rows to `amazon_top50.csv` using `csv.DictWriter`.
 - Enforces a fixed schema (`FIELD_NAMES`).
 - Quotes all CSV values (`csv.QUOTE_ALL`) for safe ingestion.
@@ -78,12 +118,12 @@ Based on the provided `amazon_top50.csv`:
 - `scrape_datetime` is constant within a run (single timestamp generated at pipeline start).
 
 ## How To Run
-The notebook contains a script-style entrypoint:
-- `if __name__ == "__main__": main()`
+Pipeline script:
+- `python pipelines/pipeline_1.py`
+- Or `python -m pipelines.pipeline_1`
 
-Practical execution options:
-- Run all cells in `product_scraping.ipynb`.
-- Or copy the code to a `.py` file and run with Python.
+Notebook wrapper:
+- Run the single cell in `product_scraping.ipynb`.
 
 Expected artifact after run:
 - `amazon_top50.csv` in the project root.
@@ -101,7 +141,7 @@ Current implementation includes basic resilience:
 - Per-product exception handling with fallback row creation.
 
 Known practical limitations from current logic:
-- Category URL is hardcoded.
+- Category URL is hardcoded (in `config/config.yaml`).
 - Parsing quality depends on product-title conventions.
 - Dynamic page changes or anti-bot behavior can affect completeness.
 
